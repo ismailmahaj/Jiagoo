@@ -1,0 +1,236 @@
+// Fondation Hassen Jiagoo — schéma de données
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ProjectStatus {
+  EN_COURS
+  FINANCE
+  TERMINE
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum BeneficiaryStatus {
+  EN_ATTENTE
+  AIDEE
+  TERMINEE
+}
+
+enum BookType {
+  EBOOK
+  PHYSICAL
+  FREE
+}
+
+enum BookBadge {
+  NONE
+  NEW
+  SOLIDARITY
+  BESTSELLER
+}
+
+enum BookPublicationStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum BookOrderPaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum BookFulfillmentStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  phone          String?
+  role           Role            @default(USER)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  donations      Donation[]
+  receipts       Receipt[]
+  adminLogs      AdminLog[]
+  bookOrders     BookOrder[]
+  bookDownloads  BookDownload[]
+  bookReceipts   BookReceipt[]
+}
+
+model Project {
+  id               String         @id @default(cuid())
+  title            String
+  slug             String         @unique
+  description      String         @db.Text
+  longDescription  String?        @db.Text
+  imageUrl         String
+  gallery          String[]       @default([])
+  goalAmount       Int // centimes (ex. 50000 = 500,00 €)
+  status           ProjectStatus  @default(EN_COURS)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  donations        Donation[]
+  beneficiaries    Beneficiary[]
+}
+
+model Donation {
+  id               String        @id @default(cuid())
+  amount           Int // centimes
+  currency         String        @default("eur")
+  anonymous        Boolean       @default(false)
+  donorFirstName   String?
+  donorLastName    String?
+  donorEmail       String?
+  donorPhone       String?
+  status           PaymentStatus @default(PENDING)
+  stripeSessionId  String?       @unique
+  stripePaymentId  String?       @unique
+  userId           String?
+  user             User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  projectId        String
+  project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  receipt          Receipt?
+}
+
+model Beneficiary {
+  id          String            @id @default(cuid())
+  firstName   String
+  lastName    String
+  age         Int
+  studyLevel  String
+  description String            @db.Text
+  status      BeneficiaryStatus @default(EN_ATTENTE)
+  projectId   String?
+  project     Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model Receipt {
+  id         String   @id @default(cuid())
+  number     String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  donationId String   @unique
+  donation   Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model Book {
+  id               String                  @id @default(cuid())
+  slug             String                  @unique
+  title            String
+  author           String
+  shortDescription String                  @db.Text
+  longDescription  String                  @db.Text
+  coverImage       String
+  type             BookType
+  price            Int // centimes (0 si FREE)
+  stock            Int                     @default(0)
+  pdfUrl           String?
+  epubUrl          String?
+  pages            Int?
+  language         String                  @default("fr")
+  category         String?
+  badge            BookBadge               @default(NONE)
+  status           BookPublicationStatus   @default(DRAFT)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  orders           BookOrder[]
+  downloads        BookDownload[]
+}
+
+model BookOrder {
+  id                 String                  @id @default(cuid())
+  userId             String?
+  user               User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  bookId             String
+  book               Book                    @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  quantity           Int                     @default(1)
+  totalPrice         Int // centimes (sous-total + livraison)
+  subtotal           Int
+  shippingCents      Int                     @default(0)
+  paymentStatus      BookOrderPaymentStatus  @default(PENDING)
+  orderStatus        BookFulfillmentStatus   @default(PENDING)
+  isAnonymous        Boolean                 @default(false)
+  customerFirstName  String
+  customerLastName   String
+  customerEmail      String
+  customerPhone      String?
+  shippingAddress    String?
+  shippingCity       String?
+  shippingPostalCode String?
+  shippingCountry    String?
+  stripeSessionId    String?                 @unique
+  stripePaymentId    String?                 @unique
+  trackingNumber     String?
+  adminNote          String?                 @db.Text
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  download           BookDownload?
+  receipt            BookReceipt?
+}
+
+model BookDownload {
+  id            String    @id @default(cuid())
+  orderId       String    @unique
+  order         BookOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  bookId        String
+  book          Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  downloadToken String    @unique
+  expiresAt     DateTime
+  downloadCount Int       @default(0)
+  createdAt     DateTime  @default(now())
+}
+
+model BookReceipt {
+  id          String    @id @default(cuid())
+  number      String    @unique
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  bookOrderId String   @unique
+  bookOrder   BookOrder @relation(fields: [bookOrderId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+}
+
+model AdminLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String?  @db.Text
+  ip        String?
+  createdAt DateTime @default(now())
+}
