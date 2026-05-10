@@ -4,7 +4,7 @@
 # Railway (prêt) :
 #   - Service : Root Directory = dossier contenant ce Dockerfile (souvent « web »).
 #   - Variables : DATABASE_URL, AUTH_SECRET, NEXT_PUBLIC_APP_URL, AUTH_URL (recommandé),
-#     clés Stripe, etc. (voir .env.example). Railway injecte PORT au runtime (remplace le défaut 3000).
+#     clés Stripe, etc. (voir .env.example). Railway définit PORT (ex. 8080) : l’app doit l’utiliser telle quelle.
 #   - Schéma BDD : une commande Release / one-shot « npx prisma db push » (ou migrate deploy),
 #     car l’image finale ne contient pas la CLI Prisma.
 #   - Healthcheck : railway.json pointe sur /api/health (sans Postgres).
@@ -48,7 +48,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/client ./nod
 RUN mkdir -p uploads/books && chown -R nextjs:nodejs uploads
 
 USER nextjs
+# Métadonnée seulement. Le port réel = variable PORT au runtime (Railway injecte souvent 8080) — c’est voulu.
 EXPOSE 3000
-ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+# Ne pas forcer --port ici : Next écoute sur parseInt(process.env.PORT, 10) || 3000 (voir .next/standalone/server.js).
 CMD ["node", "server.js"]
