@@ -1,0 +1,40 @@
+# Développement / test local avec Postgres
+# Usage : docker compose up --build
+# Puis : docker compose exec web npx prisma db push
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fhj
+      POSTGRES_PASSWORD: fhj_local_dev
+      POSTGRES_DB: fondation_hassen_jiagoo
+    ports:
+      - "5432:5432"
+    volumes:
+      - fhj_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fhj -d fondation_hassen_jiagoo"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://fhj:fhj_local_dev@db:5432/fondation_hassen_jiagoo?schema=public
+      AUTH_SECRET: changez-moi-en-dev-minimum-32-caracteres
+      AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    # Premier lancement : docker compose exec web npx prisma db push
+    # Pour persister les PDF uploadés en local : bind mount ./uploads:/app/uploads (droits d’écriture pour l’utilisateur du conteneur)
+
+volumes:
+  fhj_pgdata:
