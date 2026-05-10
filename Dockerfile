@@ -1,7 +1,17 @@
 # syntax=docker/dockerfile:1
 # Image de production — Next.js + Prisma (Fondation Hassen Jiagoo)
-# Build : docker build -t fhj-web .
-# Run   : docker run --rm -p 3000:3000 -e DATABASE_URL=... -e AUTH_SECRET=... -e NEXT_PUBLIC_APP_URL=... fhj-web
+#
+# Railway (prêt) :
+#   - Service : Root Directory = dossier contenant ce Dockerfile (souvent « web »).
+#   - Variables : DATABASE_URL, AUTH_SECRET, NEXT_PUBLIC_APP_URL, AUTH_URL (recommandé),
+#     clés Stripe, etc. (voir .env.example). Railway injecte PORT au runtime (remplace le défaut 3000).
+#   - Schéma BDD : une commande Release / one-shot « npx prisma db push » (ou migrate deploy),
+#     car l’image finale ne contient pas la CLI Prisma.
+#   - Healthcheck : railway.json pointe sur /api/health (sans Postgres).
+#   - PDF uploads/ : disque conteneur éphémère — ajouter un volume Railway sur /app/uploads si besoin.
+#
+# Local : docker build -t fhj-web .
+#         docker run --rm -p 3000:3000 -e DATABASE_URL=... -e AUTH_SECRET=... -e NEXT_PUBLIC_APP_URL=... fhj-web
 
 FROM node:20-bookworm-slim AS base
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
@@ -9,7 +19,8 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json package-lock.json ./
-RUN npm ci
+# postinstall = prisma generate : le schéma n’est pas encore copié ici → ignorer les scripts.
+RUN npm ci --ignore-scripts
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
