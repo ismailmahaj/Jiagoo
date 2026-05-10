@@ -5,8 +5,9 @@
 #   - Service : Root Directory = dossier contenant ce Dockerfile (souvent « web »).
 #   - Variables : DATABASE_URL, AUTH_SECRET, NEXT_PUBLIC_APP_URL, AUTH_URL (recommandé),
 #     clés Stripe, etc. (voir .env.example). Railway définit PORT (ex. 8080) : l’app doit l’utiliser telle quelle.
-#   - Schéma BDD : une commande Release / one-shot « npx prisma db push » (ou migrate deploy),
-#     car l’image finale ne contient pas la CLI Prisma.
+#   - Schéma BDD : railway.json → preDeployCommand « prisma db push --skip-generate »
+#     (pas de dossier migrations : utiliser migrate deploy quand vous aurez des migrations).
+#     La CLI Prisma est installée globalement dans l’image pour cette commande.
 #   - Healthcheck : railway.json pointe sur /api/health (sans Postgres).
 #   - PDF uploads/ : disque conteneur éphémère — ajouter un volume Railway sur /app/uploads si besoin.
 #
@@ -43,6 +44,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/client ./node_modules/@prisma/client
+
+# Schéma Prisma + CLI (commande Release Railway : prisma db push)
+COPY --from=builder /app/prisma ./prisma
+RUN npm install -g prisma@5.22.0 && chown -R nextjs:nodejs /app/prisma
 
 # Dossier uploads (PDF livres) — monter un volume en prod si besoin de persistance
 RUN mkdir -p uploads/books && chown -R nextjs:nodejs uploads
